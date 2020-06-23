@@ -2,6 +2,8 @@ extern crate quickcheck;
 #[macro_use] extern crate quickcheck_derive;
 
 use std::collections::VecDeque;
+use rand::{Rng, thread_rng};
+use rand::distributions::Uniform;
 
 fn main() {
     println!("Hello, world!");
@@ -9,16 +11,21 @@ fn main() {
 
 #[derive(Debug, PartialEq, Eq, Clone, Arbitrary, Copy)]
 struct Point(i32, i32);
-
 impl Point {
-    fn norm_L1(&self, b: Point) -> i32 {
+    fn norm_l1(&self, b: Point) -> i32 {
         (self.0-b.0).abs()+(self.1-b.1).abs()
+    }
+
+    fn random(bot_left: Point, top_right: Point) -> Point {   
+        let mut rng = thread_rng(); // todo static lifetime ?
+        let x_range = Uniform::new(bot_left.0, top_right.0);
+        let y_range = Uniform::new(bot_left.1, top_right.1);
+        Point(rng.sample(x_range),rng.sample(y_range))
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Arbitrary)]
 enum Direction { Left, Right, Down, Up }
-
 impl Direction {
     fn advance(&self, mut p: Point) -> Point {
         match &self {
@@ -41,16 +48,22 @@ impl Direction {
 }
 
 #[derive(Debug)]
-struct Board{top_right: Point}
+struct Board{top_right: Point, food: Point}
 impl Board {
 
     fn new() -> Self {
-        Board {top_right: Point(100, 100)}
+        let mut b = Board {top_right: Point(100, 100), food: Point(-1, -1)};
+        b.replace_food();
+        b
     }
 
     fn contains(&self, p: Point) -> bool {
         (0..self.top_right.0).contains(&p.0) &&        
         (0..self.top_right.1).contains(&p.1)
+    }
+
+    fn replace_food(&mut self) {
+        self.food = Point::random(Point(0, 0), self.top_right);
     }
 }
 
@@ -58,22 +71,27 @@ impl Board {
 struct Snake {
     board: Board,
     body: VecDeque<Point>,
-    dir: Direction
+    dir: Direction,
+    game_over: bool,
 }
-
 impl Snake {
 
-    fn new() -> Self {
+    fn new(start: Point) -> Self {
         Snake {
             board: Board::new(),
-            body: VecDeque::from(vec![Point(0, 0)]),
-            dir: Direction::Left
+            body: VecDeque::from(vec![start]),
+            dir: Direction::Left,
+            game_over: false,
         }
     }
 
     pub fn advance(&mut self) -> &mut Self { 
         self.grow();       
-        self.body.pop_back();
+        if self.body[0] == self.board.food {
+            self.board.replace_food();
+        } else {
+            self.body.pop_back();
+        }
         self
     }
 
@@ -84,15 +102,23 @@ impl Snake {
         self
     }
 
-    pub fn grow(&mut self) -> &mut Self {
+    pub fn is_game_over(&self) -> bool {
+        self.game_over
+    }
+
+    fn grow(&mut self) -> &mut Self {
         let fst = self.body.front().unwrap().clone();
         let new_fst = self.dir.advance(fst);
         self.body.push_front(new_fst);
+        if !self.head_in_legal_state() {
+            self.game_over = true;
+            // TODO destroy the body to cause exceptions if game_over is not handled ?
+        }
         self
     }
 
-    pub fn in_legal_state(&self) -> bool {
-        let head_not_in_body = {
+    fn head_in_legal_state(&self) -> bool {
+        let head_not_in_body = { // while_all macro to represent this construct ? / all <predicate> for <var> in <range>
             let mut i = 1; while i < self.body.len() && self.body[0]!=self.body[i] {
                 i +=1;
             };
@@ -106,15 +132,13 @@ impl Snake {
 // cargo test -- --nocapture
 #[cfg(test)]
 mod test {
-    use super::Direction;
-    use super::Point;
+    use super::*;
     use super::quickcheck::QuickCheck;
-    use super::Snake;
-    use super::VecDeque;
     
     #[test]
     fn basics() {
-        let mut s = Snake::new();
+        let mut s = Snake::new(Point(0, 0));
+        s.board.food = Point(1000, 1000);
 
         s.grow().grow();
         assert_eq!(s.body, VecDeque::from(vec![Point(-2, 0), Point(-1, 0), Point(0, 0)]));
@@ -130,11 +154,53 @@ mod test {
         
         s.change_direction(Direction::Right).advance();
         assert_eq!(s.body, VecDeque::from(vec![Point(-1, 1), Point(-2, 1), Point(-2, 0), Point(-1, 0)]));
+
+        s.board.food = Point(0, 1);
+        s.advance();
+        assert_eq!(s.body, VecDeque::from(vec![Point(0, 1), Point(-1, 1), Point(-2, 1), Point(-2, 0), Point(-1, 0)]));
         
         s.change_direction(s.dir.behind());
         assert_eq!(s.dir, Direction::Right);
 
         println!("Snake: {:?}", s);
+
+        // board contains
+        let b = Board::new();
+        assert!(b.contains(Point(50, 50)));
+        assert!(b.contains(Point(0, 34)));
+        assert!(b.contains(Point(0, 0)));
+
+        assert!(!b.contains(Point(100, 50)));
+        assert!(!b.contains(Point(-1, 50)));
+        assert!(!b.contains(Point(5, 102)));
+
+        // in legal state
+        s = Snake::new(Point(0, 0));
+        s.board.food = Point(1000, 1000);
+        assert_eq!(s.dir, Direction::Left);
+        assert!(s.head_in_legal_state());
+        assert!(!s.is_game_over());
+
+        s.grow();
+        assert_eq!(s.body[0], Point(-1, 0));
+        assert!(!s.head_in_legal_state());
+        assert!(s.is_game_over());
+
+        s.change_direction(Direction::Up).advance().change_direction(Direction::Right).advance();
+        assert_eq!(s.body[0], Point(0, 1));
+        assert!(s.head_in_legal_state());
+        assert!(s.is_game_over());
+
+        s.change_direction(Direction::Down).advance().advance();
+        assert_eq!(s.body[0], Point(0, -1));
+        assert!(!s.head_in_legal_state());
+
+        s = Snake::new(Point(10, 10)); 
+        s.board.food = Point(1000, 1000);
+        assert!(s.head_in_legal_state());
+        s.grow().change_direction(Direction::Up).grow().change_direction(Direction::Right).grow().change_direction(Direction::Down).grow();
+        assert_eq!(s.body[0], Point(10, 10));
+        assert!(!s.head_in_legal_state(), "Snake bit itself");
     }
 
     #[test]
@@ -166,7 +232,7 @@ mod test {
                 }
             }
 
-            let mut s = Snake::new();
+            let mut s = Snake::new(Point(0, 0));
             let mut m = SnakeModel{len: 1};
 
             for op in ops {
@@ -179,15 +245,22 @@ mod test {
                         s.change_direction(dir);
                     }
                     Op::Advance => {
-                        let old_fst_lst = (s.body.front().cloned(), s.body.back().cloned());
+                        let food = s.board.food;
+                        let (old_fst, old_lst) = (s.body[0], s.body.back().cloned());
                         s.advance();
-                        let new_fst_lst = (s.body.front().cloned(), s.body.back().cloned());
-                        assert_ne!(old_fst_lst, new_fst_lst, "Snake extremities change when it advances");
+                        let (new_fst, new_lst) = (s.body[0], s.body.back().cloned());                        
+                        if s.body[0]==food {
+                            m.len += 1;
+                            assert_eq!(old_lst, new_lst);
+                        } else {
+                            assert_ne!(old_lst, new_lst, "Snake tail changes when it advances and does not eat food");
+                        }
+                        assert_ne!(old_fst, new_fst, "Snake head changes when it advances");
                     }
                 }
-                //&s.body[0..(s.body.len()-1)].zip(&s.body[1..]).all(|a, b| Point::norm_L1(a, b)==1); TODO figure out slices of vecdeque                
+                //&s.body[0..(s.body.len()-1)].zip(&s.body[1..]).all(|a, b| Point::norm_l1(a, b)==1); TODO figure out slices of vecdeque                
                 let all_neighbors = {
-                    let mut i = 1; while i < s.body.len() && 1==s.body[i-1].norm_L1(s.body[i]) {
+                    let mut i = 1; while i < s.body.len() && 1==s.body[i-1].norm_l1(s.body[i]) {
                         i+=1;
                     };
                     i == s.body.len()
