@@ -1,12 +1,77 @@
+extern crate piston_window;
 extern crate quickcheck; 
 #[macro_use] extern crate quickcheck_derive;
 
 use std::collections::VecDeque;
 use rand::{Rng, thread_rng};
 use rand::distributions::Uniform;
+use piston_window::*;
 
 fn main() {
-    println!("Hello, world!");
+    const REFRESH_RATE: f64 = 1.0/20.0;
+    const H: f64 = 25.0;
+    const W: f64 = 35.0;
+    const SCALE: f64 = 10.0;
+    loop {
+        let mut dt: f64 = 0.0;
+        
+        let mut s = Snake::new(Point((W/2.0) as i32, (H/2.0) as i32), Point(W as i32, H as i32));
+        let mut window: PistonWindow =
+            WindowSettings::new("The Mighty Snake", [SCALE*W, SCALE*H])
+            .exit_on_esc(true).build().unwrap();
+        println!("start: {:?}", s);
+        println!("game_over {}", s.game_over());
+    
+        while let Some(event) = window.next() {
+            if let Some(Button::Keyboard(Key::Space)) = event.press_args() {
+                break;
+            }
+        }
+        while let (Some(event), false) = (window.next(), s.game_over()) {
+            if let Some(Button::Keyboard(key)) = event.press_args() {
+                if let Some(dir) = match key {
+                    Key::Left    => Some(Direction::Left),
+                    Key::Right   => Some(Direction::Right),
+                    Key::Down    => Some(Direction::Up),
+                    Key::Up      => Some(Direction::Down),
+                    _ => None
+                } {
+                    //println!("dir: {:?}", dir);
+                    s.change_direction(dir);
+                    s.advance();
+                    dt = 0.0;    
+                }
+            }       
+
+            event.update(|arg| {
+                dt += arg.dt; // use a real timer, right now more event = more update..
+                if dt > REFRESH_RATE {
+                    /*println!("in update, dt: {}", dt);
+                    println!("game_over {}", s.game_over());
+                    println!("food {:?}", s.board.food);
+                    println!("snake {:?}", s.body);*/
+                    dt = 0.0;
+                    s.advance();
+                }
+            });
+
+            window.draw_2d(&event, |context, graphics, _device| {
+                clear([0.3; 4], graphics);
+                for &Point(x, y) in &s.body {   
+                    rectangle([1.0, 0.0, 0.0, 1.0], // red
+                        [SCALE*x as f64, SCALE*y as f64, SCALE, SCALE],
+                        context.transform,
+                        graphics);
+                }
+                let Point(food_x, food_y) = s.board.food;
+                rectangle([0.0, 1.0, 0.0, 1.0], // green
+                    [SCALE*food_x as f64, SCALE*food_y as f64, SCALE, SCALE],
+                    context.transform,
+                    graphics);
+            });
+        }
+        println!("snake {:?}", s.body);
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Arbitrary, Copy)]
@@ -16,7 +81,7 @@ impl Point {
         (self.0-b.0).abs()+(self.1-b.1).abs()
     }
 
-    fn random(bot_left: Point, top_right: Point) -> Point {   
+    fn random(bot_left: Point, top_right: Point) -> Point {   // todo real uniform generator
         let mut rng = thread_rng(); // todo static lifetime ?
         let x_range = Uniform::new(bot_left.0, top_right.0);
         let y_range = Uniform::new(bot_left.1, top_right.1);
@@ -51,8 +116,8 @@ impl Direction {
 struct Board{top_right: Point, food: Point}
 impl Board {
 
-    fn new() -> Self {
-        let mut b = Board {top_right: Point(100, 100), food: Point(-1, -1)};
+    fn new(top_right: Point) -> Self {
+        let mut b = Board {top_right: top_right, food: Point(-1, -1)};
         b.replace_food();
         b
     }
@@ -76,9 +141,9 @@ struct Snake {
 }
 impl Snake {
 
-    fn new(start: Point) -> Self {
+    fn new(start: Point, top_right: Point) -> Self {
         Snake {
-            board: Board::new(),
+            board: Board::new(top_right),
             body: VecDeque::from(vec![start]),
             dir: Direction::Left,
             game_over: false,
@@ -102,7 +167,7 @@ impl Snake {
         self
     }
 
-    pub fn is_game_over(&self) -> bool {
+    pub fn game_over(&self) -> bool {
         self.game_over
     }
 
@@ -118,7 +183,7 @@ impl Snake {
     }
 
     fn head_in_legal_state(&self) -> bool {
-        let head_not_in_body = { // while_all macro to represent this construct ? / all <predicate> for <var> in <range>
+        let head_not_in_body = { // todo while_all macro to represent this construct ? / all <predicate> for <var> in <range>
             let mut i = 1; while i < self.body.len() && self.body[0]!=self.body[i] {
                 i +=1;
             };
@@ -137,7 +202,7 @@ mod test {
     
     #[test]
     fn basics() {
-        let mut s = Snake::new(Point(0, 0));
+        let mut s = Snake::new(Point(0, 0), Point(100, 100));
         s.board.food = Point(1000, 1000);
 
         s.grow().grow();
@@ -165,7 +230,7 @@ mod test {
         println!("Snake: {:?}", s);
 
         // board contains
-        let b = Board::new();
+        let b = Board::new(Point(100, 100));
         assert!(b.contains(Point(50, 50)));
         assert!(b.contains(Point(0, 34)));
         assert!(b.contains(Point(0, 0)));
@@ -175,27 +240,27 @@ mod test {
         assert!(!b.contains(Point(5, 102)));
 
         // in legal state
-        s = Snake::new(Point(0, 0));
+        s = Snake::new(Point(0, 0), Point(100, 100));
         s.board.food = Point(1000, 1000);
         assert_eq!(s.dir, Direction::Left);
         assert!(s.head_in_legal_state());
-        assert!(!s.is_game_over());
+        assert!(!s.game_over());
 
         s.grow();
         assert_eq!(s.body[0], Point(-1, 0));
         assert!(!s.head_in_legal_state());
-        assert!(s.is_game_over());
+        assert!(s.game_over());
 
         s.change_direction(Direction::Up).advance().change_direction(Direction::Right).advance();
         assert_eq!(s.body[0], Point(0, 1));
         assert!(s.head_in_legal_state());
-        assert!(s.is_game_over());
+        assert!(s.game_over());
 
         s.change_direction(Direction::Down).advance().advance();
         assert_eq!(s.body[0], Point(0, -1));
         assert!(!s.head_in_legal_state());
 
-        s = Snake::new(Point(10, 10)); 
+        s = Snake::new(Point(10, 10), Point(100, 100)); 
         s.board.food = Point(1000, 1000);
         assert!(s.head_in_legal_state());
         s.grow().change_direction(Direction::Up).grow().change_direction(Direction::Right).grow().change_direction(Direction::Down).grow();
@@ -232,7 +297,7 @@ mod test {
                 }
             }
 
-            let mut s = Snake::new(Point(0, 0));
+            let mut s = Snake::new(Point(0, 0), Point(100, 100));
             let mut m = SnakeModel{len: 1};
 
             for op in ops {
