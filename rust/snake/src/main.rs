@@ -7,12 +7,21 @@ use rand::{Rng, thread_rng};
 use rand::distributions::Uniform;
 use piston_window::*;
 
+macro_rules! forall {
+    ($i: ident in $range: expr, $predicate: expr) => {
+        {
+            let mut $i = $range.start; while $i < $range.end && $predicate {$i+=1;};
+            $i == $range.end
+        }
+    };
+}
+
 fn main() {
     const REFRESH_RATE: f64 = 1.0/20.0;
     const H: f64 = 20.0;
     const W: f64 = 35.0;
     const SCALE: f64 = 20.0;
-
+    
     // retry game hack
     loop {
         let mut dt: f64 = 0.0;
@@ -91,6 +100,7 @@ fn main() {
 #[derive(Debug, PartialEq, Eq, Clone, Arbitrary, Copy)]
 struct Point(i32, i32);
 impl Point {
+    #[cfg(test)]
     fn norm_l1(&self, b: Point) -> i32 {
         (self.0-b.0).abs()+(self.1-b.1).abs()
     }
@@ -205,15 +215,12 @@ impl Snake {
 
     fn head_in_legal_state(&self) -> bool {
         let head = self.body[0];
-        let did_not_bit_itself = { // todo while_all macro to represent this construct ? / all <predicate> for <var> in <range>
-            let mut i = 1; while i < self.body.len() && head!=self.body[i] {
-                i +=1;
-            };
-            i == self.body.len()
-        };
+        let did_not_bit_itself = forall!(i in 1..self.body.len(), head!=self.body[i]);
         self.board.contains(head) && did_not_bit_itself              
     }
 }
+
+
 
 // to access the tests output:
 // cargo test -- --nocapture
@@ -345,13 +352,7 @@ mod test {
                         assert_ne!(old_fst, new_fst, "Snake head changes when it advances");
                     }
                 }
-                //&s.body[0..(s.body.len()-1)].zip(&s.body[1..]).all(|a, b| Point::norm_l1(a, b)==1); TODO figure out slices of vecdeque                
-                let all_neighbors = {
-                    let mut i = 1; while i < s.body.len() && 1==s.body[i-1].norm_l1(s.body[i]) {
-                        i+=1;
-                    };
-                    i == s.body.len()
-                };
+                let all_neighbors = forall!(i in 1..s.body.len(), 1==s.body[i-1].norm_l1(s.body[i]));                
                 assert!(all_neighbors, "All points of snake are neighbors");
                 assert_eq!(m.len, s.body.len(), "Snake length is consistent with the model");    
             }
