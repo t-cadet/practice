@@ -9,25 +9,33 @@ use piston_window::*;
 
 fn main() {
     const REFRESH_RATE: f64 = 1.0/20.0;
-    const H: f64 = 25.0;
+    const H: f64 = 20.0;
     const W: f64 = 35.0;
-    const SCALE: f64 = 10.0;
+    const SCALE: f64 = 20.0;
+
+    // retry game hack
     loop {
         let mut dt: f64 = 0.0;
-        
         let mut s = Snake::new(Point((W/2.0) as i32, (H/2.0) as i32), Point(W as i32, H as i32));
+
+        // window init
         let mut window: PistonWindow =
             WindowSettings::new("The Mighty Snake", [SCALE*W, SCALE*H])
             .exit_on_esc(true).build().unwrap();
         println!("start: {:?}", s);
         println!("game_over {}", s.game_over());
     
+        // start game hack
         while let Some(event) = window.next() {
             if let Some(Button::Keyboard(Key::Space)) = event.press_args() {
                 break;
             }
         }
+
+        // game loops until game_over
         while let (Some(event), false) = (window.next(), s.game_over()) {
+
+            // input: handle direction
             if let Some(Button::Keyboard(key)) = event.press_args() {
                 if let Some(dir) = match key {
                     Key::Left    => Some(Direction::Left),
@@ -43,6 +51,7 @@ fn main() {
                 }
             }       
 
+            // refresh rate handler, timer
             event.update(|arg| {
                 dt += arg.dt; // use a real timer, right now more event = more update..
                 if dt > REFRESH_RATE {
@@ -55,14 +64,19 @@ fn main() {
                 }
             });
 
+            // draw
             window.draw_2d(&event, |context, graphics, _device| {
                 clear([0.3; 4], graphics);
+
+                // snake
                 for &Point(x, y) in &s.body {   
                     rectangle([1.0, 0.0, 0.0, 1.0], // red
                         [SCALE*x as f64, SCALE*y as f64, SCALE, SCALE],
                         context.transform,
                         graphics);
                 }
+
+                // food
                 let Point(food_x, food_y) = s.board.food;
                 rectangle([0.0, 1.0, 0.0, 1.0], // green
                     [SCALE*food_x as f64, SCALE*food_y as f64, SCALE, SCALE],
@@ -151,17 +165,19 @@ impl Snake {
     }
 
     pub fn advance(&mut self) -> &mut Self { 
-        self.grow();       
-        if self.body[0] == self.board.food {
+        self.grow();     
+        let snake_ate_food = self.body[0] == self.board.food;  
+        if snake_ate_food {
             self.board.replace_food();
         } else {
-            self.body.pop_back();
+            self.shrink();
         }
         self
     }
 
     pub fn change_direction(&mut self, dir: Direction) -> &mut Self {
-        if dir!=self.dir.behind() {
+        let does_not_go_backward = dir!=self.dir.behind();
+        if does_not_go_backward {
             self.dir = dir;
         }
         self
@@ -172,9 +188,9 @@ impl Snake {
     }
 
     fn grow(&mut self) -> &mut Self {
-        let fst = self.body.front().unwrap().clone();
-        let new_fst = self.dir.advance(fst);
-        self.body.push_front(new_fst);
+        let head = self.body[0];
+        let new_head = self.dir.advance(head);
+        self.body.push_front(new_head);
         if !self.head_in_legal_state() {
             self.game_over = true;
             // TODO destroy the body to cause exceptions if game_over is not handled ?
@@ -182,14 +198,20 @@ impl Snake {
         self
     }
 
+    fn shrink(&mut self) -> &mut Self {
+        self.body.pop_back();
+        self
+    }
+
     fn head_in_legal_state(&self) -> bool {
-        let head_not_in_body = { // todo while_all macro to represent this construct ? / all <predicate> for <var> in <range>
-            let mut i = 1; while i < self.body.len() && self.body[0]!=self.body[i] {
+        let head = self.body[0];
+        let did_not_bit_itself = { // todo while_all macro to represent this construct ? / all <predicate> for <var> in <range>
+            let mut i = 1; while i < self.body.len() && head!=self.body[i] {
                 i +=1;
             };
             i == self.body.len()
         };
-        self.board.contains(self.body[0]) && head_not_in_body              
+        self.board.contains(head) && did_not_bit_itself              
     }
 }
 
@@ -316,7 +338,7 @@ mod test {
                         let (new_fst, new_lst) = (s.body[0], s.body.back().cloned());                        
                         if s.body[0]==food {
                             m.len += 1;
-                            assert_eq!(old_lst, new_lst);
+                            assert_eq!(old_lst, new_lst, "Snake tail does not change when it eats food");
                         } else {
                             assert_ne!(old_lst, new_lst, "Snake tail changes when it advances and does not eat food");
                         }
