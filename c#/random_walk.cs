@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 static class MainClass {
 
@@ -47,7 +48,9 @@ static class MainClass {
 
     public Position GetRandomNeighbor(Random gen) =>
       Add(Direction.GetRandom(gen));
-      
+    
+    public int To1DIndex(int lineLength) =>
+      x + y*lineLength;
   }
 
   public class RandomWalk {
@@ -72,7 +75,7 @@ static class MainClass {
       Func<bool, char> BoolToSymbol = b =>
         b ? '・' : '〒';
       Func<string, string> SetDifferentSymbolForLastPosition = s =>
-        s.ReplaceAt(lastPosition.x + lastPosition.y*(1+(board.GetLength(0))), 1, "〠");
+        s.ReplaceAt(lastPosition.To1DIndex(1+board.GetLength(0)), 1, "〠");
 
       string str = "";
       for(int i=0; i<board.GetLength(0); i++) {
@@ -93,7 +96,25 @@ static class MainClass {
       return this;
     }
 
-    //TODO dictionary GetStats
+    public int GetCoveredArea() {
+      int coveredArea = 0;
+      for(int i=0; i<board.GetLength(0); i++) {
+        for(int j=0; j<board.GetLength(1); j++)
+          if(board[i, j]) coveredArea++;
+      }
+      return coveredArea;
+    }
+
+    public int GetTotalArea() =>
+      board.GetLength(0)*board.GetLength(1);
+
+    public Dictionary<string, int> GetStats() {
+      return new Dictionary<string, int> {
+        {"step_count", stepCounter},
+        {"covered_area", GetCoveredArea()},
+        {"total_area", GetTotalArea()},
+      };
+    }
 
   }
   public static void Main (string[] args) {    
@@ -114,10 +135,13 @@ static class MainClass {
       key = Console.ReadLine();
       rw.Walk();
     } while(key!="q");
-    Console.WriteLine("You walked " + rw.stepCounter + " steps.");
+    
+    Console.WriteLine(StatsToString(rw.GetStats()));
   }
 
-  //TODO stats to string
+  public static string StatsToString(Dictionary<string, int> stats) =>
+    "You walked " + stats["step_count"] + " times.\n" +
+    "You covered " + stats["covered_area"] + "/" + stats["total_area"] + " of the area.";
 
   public static void BasicTests() {
     var rw = new RandomWalk(20);
