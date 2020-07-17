@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Collections.Generic;
 
 static class MainClass {
@@ -119,22 +120,39 @@ static class MainClass {
   }
   public static void Main (string[] args) {    
     ManualWalk(21);
+    // WalkTillTotalCoverage(21, 15);
   }
 
-  public static void AutoWalk(int dimension, int refreshRate) {
+  public static void WalkTillTotalCoverage(int dimension, int walkFrequency) {
+    var rw = new RandomWalk(dimension);    
+    Console.Clear();
+    Console.WriteLine(rw.BoardToString());
+
+    while(rw.GetCoveredArea()!=rw.GetTotalArea()) {   
+      Thread.Sleep(1000/walkFrequency);   
+      rw.Walk();
+      Console.Clear();
+      Console.WriteLine(rw.BoardToString());
+    }
+    
+    Console.WriteLine(StatsToString(rw.GetStats()));
   }
 
   public static void ManualWalk(int dimension) {
     var rw = new RandomWalk(dimension);
-    string key = "";
+    Console.Clear();
+    Console.WriteLine(rw.BoardToString());    
+    Console.WriteLine ("Press 'Enter' to walk or input 'q' to quit");
+    string key = Console.ReadLine();
 
-    do {
+    while(key!="q") {
+      rw.Walk();
+
       Console.Clear();
-      Console.WriteLine(rw.BoardToString());
+      Console.WriteLine(rw.BoardToString());      
       Console.WriteLine ("Press 'Enter' to walk or input 'q' to quit");
       key = Console.ReadLine();
-      rw.Walk();
-    } while(key!="q");
+    }
     
     Console.WriteLine(StatsToString(rw.GetStats()));
   }
