@@ -28,6 +28,7 @@ toLuhnForm x = helper (reverse $ digits x) []
         helper [] acc = acc
         sumDigit x = if x > 9 then x-9 else x 
 
+digits 0 = [0]
 digits x = helper x []
     where
         helper 0 acc = acc

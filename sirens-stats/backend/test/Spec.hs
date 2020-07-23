@@ -9,7 +9,9 @@ tests = test $
        (testCuanu cuanuNaive) 
     ++ (testCuanu countUniqueAndNonUnique)
     ++ testDigits
+    ++ testToLuhnForm
     ++ testIsLuhn
+    ++ testSirenFromInt
 
 testCuanu cuanu = [ 
       "cuanu" ~: "" ~: (0,0) ~=? (cuanu ([]::[Integer]))
@@ -22,7 +24,7 @@ testCuanu cuanu = [
     ]
 
 testDigits = [
-      "digits" ~: "" ~: [] ~=? (digits 0)
+      "digits" ~: "" ~: [0] ~=? (digits 0)
     , "digits" ~: "" ~: [1] ~=? (digits 1)
     , "digits" ~: "" ~: [1, 0] ~=? (digits 10)
     , "digits" ~: "" ~: [7, 2, 3, 8, 7, 0] ~=? (digits 723870)
