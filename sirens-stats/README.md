@@ -26,8 +26,8 @@ Go to the frontend directory and:
 
 - Open the `.html` file in a browser
 - Click on the `Get stats` button
-  ![get stats demo](https://i.imgur.com/EgXN4dk.png)
 
+![get stats demo](https://i.imgur.com/EgXN4dk.png)
 ### Backend
 - Install Haskell Stack (https://docs.haskellstack.org/en/stable/README/)
 - In the backend directory do:
