@@ -65,5 +65,3 @@ testSirenFromInt = [
 testSirenTextToList = 
     let text = "000325175\n005420021\n005420120\n005420120\n005420120\n005450093\n005450093\n005450119\n005450119\n005480546\ngarbage\n0054805467\n-1\ndjhdlksq\n\n1dsfn\n723870"
         in ["sirenTextToList" ~: "" ~: 10 ~=? length (sirenTextToList text)]
-
--- Note: Quickcheck could be used to verify the property cuanuNaive xs == countUniqueAndNonUnique xs

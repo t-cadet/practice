@@ -1,5 +1,3 @@
--- Note: I do not know how to test the functions in the test folder without exporting them
--- A compilation flag to export private functions only when testing them could be a get around
 module Lib
     ( countUniqueAndNonUnique
     , cuanuNaive
