@@ -31,13 +31,18 @@ fn main() {
         let mut window: PistonWindow =
             WindowSettings::new("The Mighty Snake", [SCALE*W, SCALE*H])
             .exit_on_esc(true).build().unwrap();
-        println!("start: {:?}", s);
-        println!("game_over {}", s.game_over());
+        // println!("start: {:?}", s);
+        // println!("game_over {}", s.game_over());
     
         // start game hack
+        println!("Press 'Space' to start the game, 'Esc' to quit");
         while let Some(event) = window.next() {
-            if let Some(Button::Keyboard(Key::Space)) = event.press_args() {
-                break;
+            if let Some(Button::Keyboard(key)) = event.press_args() {
+                match key {
+                    Key::Space => break,
+                    Key::Escape => return,
+                    _ => continue
+                }
             }
         }
 
@@ -93,7 +98,8 @@ fn main() {
                     graphics);
             });
         }
-        println!("snake {:?}", s.body);
+        // println!("snake {:?}", s.body);
+        println!("Game over ! Snake length: {}", s.body.len());
     }
 }
 
